@@ -1,6 +1,10 @@
 #よくわからんけどdreamer動かすと出るやつ
 matplotlib-*
 xvfb-run.*
+.X*-lock
+tempfile-*
+#マイクラ関連っぽい
+tmpt9h0w7vx
 #ログ
 logdir/
 #一時ファイル

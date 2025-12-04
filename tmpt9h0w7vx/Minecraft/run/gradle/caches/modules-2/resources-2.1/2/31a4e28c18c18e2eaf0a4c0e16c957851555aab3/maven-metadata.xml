@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<metadata modelVersion="1.0.0">
+    <groupId>com.github.brandonhoughton</groupId>
+    <artifactId>forgegradle</artifactId>
+    <version>FG_2.2_patched-v2.0.2-g8de58cf-187</version>
+    <versioning>
+        <snapshot>
+            <timestamp>v2.0.2-g8de58cf</timestamp>
+            <buildNumber>187</buildNumber>
+        </snapshot>
+    </versioning>
+</metadata>

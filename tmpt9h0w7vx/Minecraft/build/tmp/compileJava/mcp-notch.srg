@@ -1,0 +1,65 @@
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/mcProfiler com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/B
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/mcSoundHandler com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aJ
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/isGamePaused com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/af
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/world com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/f
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/timer com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/Y
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/scheduledTasks com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aO
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/player com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/h
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/framebufferMc com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aH
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/skipRenderWorld com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/s
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/entityRenderer com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/o
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/gameSettings com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/u
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/prevFrameTime com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/I
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/guiAchievement com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/q
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/displayWidth com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/d
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/playerController com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/c
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/myNetworkManager com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aw
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/displayHeight com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/e
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/fpsCounter com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aT
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/currentScreen com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/m
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/theIntegratedServer com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aj
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/frameTimer com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/z
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/startNanoTime com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/A
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/debugUpdateTime com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/aS
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/debug com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/D
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/usageSnooper com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/Z
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/inGameHasFocus com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/x
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/leftClickCounter com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/ag
+FD: com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/displayListEntitiesDirty com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/ac
+FD: com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/renderDispatcher com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/N
+FD: com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/chunksToUpdate com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/l
+FD: com/microsoft/Malmo/Mixins/MixinSyncClientStats/connection com/microsoft/Malmo/Mixins/MixinSyncClientStats/a
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/currentTime com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/ab
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/statusResponse com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/q
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/serverRunning com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/w
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/motd com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/F
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/timeOfLastWarning com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/R
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/LOG com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/k
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/serverIsRunning com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/Q
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/serverStopped com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/x
+FD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/worlds com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/d
+FD: com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/world com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/b
+FD: com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/terrainType com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/h
+FD: com/microsoft/Malmo/Mixins/MixinEntityRandom/rand com/microsoft/Malmo/Mixins/MixinEntityRandom/S
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/shutdown ()V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/n ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/runTick ()V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/t ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/checkGLError (Ljava/lang/String;)V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/a (Ljava/lang/String;)V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/displayDebugInfo (J)V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/a (J)V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/updateDisplay ()V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/i ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/isSingleplayer ()Z com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/E ()Z
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/getLimitFramerate ()I com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/k ()I
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/isFramerateLimitBelowMax ()Z com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/l ()Z
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/displayGuiScreen (Lnet/minecraft/client/gui/GuiScreen;)V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/a (Lbho;)V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/setIngameFocus ()V com/microsoft/Malmo/Mixins/MixinMinecraftGameloop/o ()V
+MD: com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/updateChunks (J)V com/microsoft/Malmo/Mixins/MixinUpdateChunksNoTimeout/a (J)V
+MD: com/microsoft/Malmo/Mixins/MixinSyncClientStats/getStatFile ()Lnet/minecraft/stats/StatisticsManagerServer; com/microsoft/Malmo/Mixins/MixinSyncClientStats/E ()Lnv;
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/init ()Z com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/j ()Z
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/applyServerIconToResponse (Lnet/minecraft/network/ServerStatusResponse;)V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/a (Lkf;)V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/tick ()V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/C ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/finalTick (Lnet/minecraft/crash/CrashReport;)V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/a (Lb;)V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/addServerInfoToCrashReport (Lnet/minecraft/crash/CrashReport;)Lnet/minecraft/crash/CrashReport; com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/b (Lb;)Lb;
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/getDataDirectory ()Ljava/io/File; com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/A ()Ljava/io/File;
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/stopServer ()V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/u ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/systemExitNow ()V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/B ()V
+MD: com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/initiateShutdown ()V com/microsoft/Malmo/Mixins/MixinMinecraftServerRun/x ()V
+MD: com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/hasNoSky ()Z com/microsoft/Malmo/Mixins/MixinWorldProviderSpawn/n ()Z

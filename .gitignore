@@ -1,0 +1,17 @@
+#よくわからんけどdreamer動かすと出るやつ
+matplotlib-*
+xvfb-run.*
+#ログ
+logdir/
+#一時ファイル
+*.o
+*.a
+*.so
+*.lo
+*.la
+*.d
+*.pyc
+__pycache__/
+#大きなビルド済みバイナリ
+*.jar
+*.zip

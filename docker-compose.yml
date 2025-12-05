@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # --- サーバー側: FightingICE (j2130/javatest) ---
+  fightingice:
+    image: j2130/javatest
+    build:
+      # ~/research/FightingICE ディレクトリをビルドコンテキストとする
+      context: ./FightingICE
+      # Dockerfileの名前を指定
+      dockerfile: DockerfileTest
+    container_name: fightingice_server
+    # ホスト側からもポートアクセスできるように設定 (確認用)
+    ports:
+      - "31415:31415"
+      - "4242:4242"
+    # ログをホストの ~/research/FightingICE/log に保存
+    volumes:
+      - ./FightingICE/log:/app/log
+
+  # --- クライアント側: Python Test (j2130/pythontest) ---
+  python_client:
+    image: j2130/pythontest
+    build:
+      # ~/research/test ディレクトリをビルドコンテキストとする
+      context: ./test
+      # Dockerfileの名前を指定 (デフォルトなら省略可能ですが明記します)
+      dockerfile: Dockerfile
+    container_name: python_test_client
+    # サーバーが起動してからクライアントを起動
+    depends_on:
+      - fightingice
+    # Pythonスクリプトに渡す環境変数
+    environment:
+      - FIGHTINGICE_HOST=fightingice
+      - FIGHTINGICE_PORT=31415

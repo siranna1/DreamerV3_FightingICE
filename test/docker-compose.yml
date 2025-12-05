@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # --- サーバー側: FightingICE ---
+  fightingice:
+    # 以前作成した Dockerfile.fightingice を指定
+    build:
+      context: .
+      dockerfile: Dockerfile.fightingice
+    container_name: fightingice_server
+    # ログをホストと共有
+    volumes:
+      - ./log:/app/log
+    ports:
+      - "31415:31415" # ホストから確認したい場合用
+    # ヘルスチェック (任意): ポートが開くまで待つ設定などが可能ですが、
+    # 今回はシンプルにします。
+
+  # --- クライアント側: Python Test AI ---
+  python_client:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: python_client
+    # サーバーが起動してからクライアントを動かす
+    depends_on:
+      - fightingice
+    # 環境変数で接続先を渡す
+    environment:
+      - FIGHTINGICE_HOST=fightingice  # サービス名 "fightingice" を指定
+      - FIGHTINGICE_PORT=31415

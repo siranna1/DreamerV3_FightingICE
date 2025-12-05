@@ -1,0 +1,21 @@
+Manifest-Version: 1.0
+Main-Class: Main
+Class-Path: . FightingICE_lib/failureaccess-1.0.1.jar FightingICE_lib/gu
+ ava-32.1.2-jre.jar FightingICE_lib/jakarta.json-api-2.1.2.jar FightingI
+ CE_lib/javax.annotation-api-1.3.2.jar FightingICE_lib/lwjgl_util-2.9.3.
+ jar FightingICE_lib/lwjgl-glfw.jar FightingICE_lib/lwjgl-openal.jar Fig
+ htingICE_lib/lwjgl-opengl.jar FightingICE_lib/lwjgl.jar FightingICE_lib
+ /lwjgl-glfw-natives-linux.jar FightingICE_lib/lwjgl-natives-linux.jar F
+ ightingICE_lib/lwjgl-openal-natives-linux.jar FightingICE_lib/lwjgl-ope
+ ngl-natives-linux.jar FightingICE_lib/lwjgl-glfw-natives-macos-arm64.ja
+ r FightingICE_lib/lwjgl-natives-macos-arm64.jar FightingICE_lib/lwjgl-o
+ penal-natives-macos-arm64.jar FightingICE_lib/lwjgl-opengl-natives-maco
+ s-arm64.jar FightingICE_lib/lwjgl-glfw-natives-macos-arm64_2.jar Fighti
+ ngICE_lib/lwjgl-natives-macos-arm64_2.jar FightingICE_lib/lwjgl-openal-
+ natives-macos-arm64_2.jar FightingICE_lib/lwjgl-opengl-natives-macos-ar
+ m64_2.jar FightingICE_lib/lwjgl-glfw-natives-windows.jar FightingICE_li
+ b/lwjgl-natives-windows.jar FightingICE_lib/lwjgl-openal-natives-window
+ s.jar FightingICE_lib/lwjgl-opengl-natives-windows.jar FightingICE_lib/
+ perfmark-api-0.26.0.jar FightingICE_lib/protobuf-java-3.24.3.jar Fighti
+ ngICE_lib/protobuf-java-util-3.24.3.jar
+

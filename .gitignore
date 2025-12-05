@@ -19,3 +19,4 @@ __pycache__/
 #大きなビルド済みバイナリ
 *.jar
 *.zip
+test/

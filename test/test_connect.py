@@ -7,20 +7,20 @@ import traceback
 from pyftg import AIInterface, FrameData, AudioData, RoundResult, ScreenData, Key, GameData, CommandCenter
 from pyftg.socket.aio.gateway import Gateway
 
-class TestKickAI(AIInterface):
-    def __init__(self):
+class BaseCombatAI(AIInterface):
+    def __init__(self, mode):
         super().__init__()
         self.cc = CommandCenter()
         self.input_key = Key()
         self.frame_data = None
-        self.blind = False
-        self.player = True 
+        self.player = True
+        self.mode = mode  # "PUNCH" or "KICK"
 
     def name(self) -> str:
-        return "TestKickAI"
+        return f"{self.mode}AI"
 
     def is_blind(self) -> bool:
-        return self.blind
+        return False
 
     def initialize(self, game_data: GameData, player: bool):
         self.player = player
@@ -28,60 +28,70 @@ class TestKickAI(AIInterface):
         self.frame_data = FrameData()
         self.cc.set_frame_data(self.frame_data, self.player)
 
-    def close(self):
-        pass
-
-    def input(self) -> Key:
-        return self.input_key
-
-    def get_non_delay_frame_data(self, frame_data: FrameData):
-        pass
+    def close(self): pass
+    def input(self) -> Key: return self.input_key
+    def get_non_delay_frame_data(self, frame_data: FrameData): pass
 
     def get_information(self, frame_data: FrameData, is_control: bool):
         self.frame_data = frame_data
         self.cc.set_frame_data(frame_data, self.player)
-    
-    def get_screen_data(self, screen_data: ScreenData):
-        pass
 
-    def get_audio_data(self, audio_data: AudioData):
-        pass
+    def get_screen_data(self, screen_data: ScreenData): pass
+    def get_audio_data(self, audio_data: AudioData): pass
+    def round_end(self, round_result: RoundResult): print(f"Round End: {self.mode}AI")
+    def game_end(self): print("Game End")
 
     def processing(self):
         try:
-            # メンバ変数 frame_data が None の場合はスキップ
-            if self.frame_data is None:
+            if self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
                 return
 
-            # ★重要修正: メソッド() ではなく プロパティ変数 としてアクセスする
-            # (get_empty_flag() -> empty_flag, get_remaining_frames_number() -> remaining_frames_number)
-            if self.frame_data.empty_flag: 
-                return
-            if self.frame_data.current_frame_number < 0:
-                return
 
-            if self.cc.get_skill_key():
-                self.cc.command_call("B")
-                self.input_key = self.cc.get_skill_key()
+            # 1. まずCommandCenterから現在のフレームのキーを取得
+            self.input_key = self.cc.get_skill_key()
+
+            # 2. キー入力が有効か（何らかのボタンが押されているか）判定する関数
+            def is_key_active(key):
+                # 攻撃ボタン(A,B,C) または 方向キー(U,D,L,R) が押されていれば「実行中」とみなす
+                return key.A or key.B or key.C or key.U or key.D or key.L or key.R
+
+            # 3. アクション実行中なら、新しい判断をせずにリターン（今の動作を継続）
+            if is_key_active(self.input_key):
+                return
+                
+            self.input_key = Key() # 入力リセット
+            
+            # 自分のキャラと相手のキャラの位置を取得
+            me = self.frame_data.get_character(self.player)
+            opp = self.frame_data.get_character(not self.player)
+            
+            # 距離を計算 (X座標の差の絶対値)
+            distance = abs(me.x - opp.x)
+            
+            # ロジック: 距離が100より遠ければ近づく、近ければ攻撃
+            if distance > 100:
+                self.cc.command_call("FORWARD_WALK")
             else:
-                self.input_key = Key()
+                if self.mode == "PUNCH":
+                    self.cc.command_call("STAND_A") # Aボタン（パンチ）
+                elif self.mode == "KICK":
+                    self.cc.command_call("STAND_B") # Bボタン（キック）
+
+            # 生成されたコマンドをキー入力に反映
+            self.input_key = self.cc.get_skill_key()
 
         except Exception as e:
-            print(f"Processing Error: {e}")
-            traceback.print_exc() # 詳細なエラースタックトレースを表示
+            traceback.print_exc()
             sys.exit(1)
 
-    def round_end(self, round_result: RoundResult):
-        # RoundResult も同様にプロパティアクセスの可能性があるため修正
-        # (get_remaining_hps() -> remaining_hps)
-        try:
-            print(f"Round End: Result {round_result.remaining_hps}")
-        except:
-            # 万が一メソッドだった場合のフォールバック（デバッグ用）
-            print(f"Round End: Result (Unknown format)")
+# 個別のクラスとして定義（登録名のために使い分ける）
+class PunchAI(BaseCombatAI):
+    def __init__(self):
+        super().__init__("PUNCH")
 
-    def game_end(self):
-        print("Game End")
+class KickAI(BaseCombatAI):
+    def __init__(self):
+        super().__init__("KICK")
 
 async def main():
     host = os.environ.get("FIGHTINGICE_HOST", "127.0.0.1")
@@ -90,8 +100,8 @@ async def main():
     print(f"Connecting to FightingICE server at {host}:{port} ...")
     
     gateway = Gateway(host=host, port=port)
-    agent1 = TestKickAI()
-    agent2 = TestKickAI()
+    agent1 = KickAI()
+    agent2 = PunchAI()
 
     gateway.register_ai("KickAI_1", agent1)
     gateway.register_ai("KickAI_2", agent2)

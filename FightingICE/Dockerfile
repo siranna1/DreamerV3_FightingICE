@@ -44,8 +44,11 @@ ENV JAVA_ARGS "-cp FightingICE.jar:./lib/* Main --lightweight-mode"
 # ENTRYPOINTでxvfb-runを設定し、Javaアプリケーションを仮想ディスプレイで起動
 # -a: 自動的に利用可能なディスプレイ番号を選択
 # -s "-screen 0 1024x768x24": 仮想スクリーンの設定
-ENTRYPOINT [ "xvfb-run", "-a", "-s", "-screen 0 1024x768x24", "/usr/bin/java"]
+#ENTRYPOINT [ "xvfb-run", "-a", "-s", "-screen 0 1024x768x24"]
+#xvfb-run -a java -cp FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/* Main --limithp 400 400 --grey-bg --pyftg-mode
 
 # CMDでJavaの引数（FightingICEのクラスパスとオプション）を渡す
 # --disable-window はウィンドウ表示を抑制するオプションとして追加
-CMD [ "-Xmx1G", "-Xms512M", "-Xmn256M","-cp", "FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/*", "Main", "--disable-window", "--limithp", "400", "400", "--pyftg-mode", "--fastmode", "--mute" ]
+#CMD ["java", "-Xmx1G", "-Xms512M", "-Xmn256M","-cp", "FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/*", "Main", "--disable-window", "--limithp", "400", "400", "--pyftg-mode", "--fastmode", "--mute" ]
+#CMD ["sh", "-c", "java -Xmx1G -Xms512M -Xmn256M -cp 'FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/*' Main --disable-window --limithp 400 400 --pyftg-mode --fastmode --mute"]
+

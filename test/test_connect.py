@@ -103,15 +103,14 @@ async def main():
     
     gateway = Gateway(host=host, port=port)
     agent1 = KickAI()
-    agent2 = PunchAI()
+    agent2 = PunchAI
 
     gateway.register_ai("KickAI_1", agent1)
-    gateway.register_ai("KickAI_2", agent2)
 
     print("AI registered. Starting game...")
-
     try:
-        await gateway.run_game(["ZEN", "ZEN"], ["KickAI_1", "KickAI_2"], 1)
+
+        await gateway.run_game(["ZEN", "ZEN"], ["KickAI_1", "MctsAi23i"], 1)
     except Exception as e:
         print(f"Python Side Error: {e}")
         import traceback

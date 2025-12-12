@@ -18,4 +18,7 @@ dreamerv3をインポートしてこようと思ったけどうまいことい�
 fightingiceはresearchで
 docker run --rm -it --name fightingice --network fighting-net -v ${PWD}/FightingICE/log:/app/log j2130/fightingice 
 を実行
-train_dreamer.pyのtensorboardの設定できなかったから頑張って
+課題
+ tensorboardの設定
+ ラウンド終了すると次のゲームを無理やり始めようとしてる。ゲームエンドは3ラウンドだからなんかよくないかも
+ dreamerがチェックポイントをセーブした後なんかエラー出る。エラーはgeminiに投げたからみてやって

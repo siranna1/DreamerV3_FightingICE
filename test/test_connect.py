@@ -49,7 +49,7 @@ class BaseCombatAI(AIInterface):
 
             # 1. まずCommandCenterから現在のフレームのキーを取得
             self.input_key = self.cc.get_skill_key()
-
+            
             # 2. キー入力が有効か（何らかのボタンが押されているか）判定する関数
             def is_key_active(key):
                 # 攻撃ボタン(A,B,C) または 方向キー(U,D,L,R) が押されていれば「実行中」とみなす
@@ -57,25 +57,27 @@ class BaseCombatAI(AIInterface):
 
             # 3. アクション実行中なら、新しい判断をせずにリターン（今の動作を継続）
             if is_key_active(self.input_key):
+                print("[Wrapper] Continuing current action...")
                 return
                 
             self.input_key = Key() # 入力リセット
             
             # 自分のキャラと相手のキャラの位置を取得
-            me = self.frame_data.get_character(self.player)
-            opp = self.frame_data.get_character(not self.player)
+            #me = self.frame_data.get_character(self.player)
+            #opp = self.frame_data.get_character(not self.player)
             
             # 距離を計算 (X座標の差の絶対値)
-            distance = abs(me.x - opp.x)
+            #distance = abs(me.x - opp.x)
             
             # ロジック: 距離が100より遠ければ近づく、近ければ攻撃
-            if distance > 100:
-                self.cc.command_call("FORWARD_WALK")
-            else:
-                if self.mode == "PUNCH":
-                    self.cc.command_call("STAND_A") # Aボタン（パンチ）
-                elif self.mode == "KICK":
-                    self.cc.command_call("STAND_B") # Bボタン（キック）
+            # if distance > 100:
+            #     self.cc.command_call("FORWARD_WALK")
+            # else:
+            #     if self.mode == "PUNCH":
+            #         self.cc.command_call("STAND_A") # Aボタン（パンチ）
+            #     elif self.mode == "KICK":
+            #         self.cc.command_call("STAND_B") # Bボタン（キック）
+            self.cc.command_call("FORWARD_WALK")  # "PUNCH" or "KICK"
 
             # 生成されたコマンドをキー入力に反映
             self.input_key = self.cc.get_skill_key()

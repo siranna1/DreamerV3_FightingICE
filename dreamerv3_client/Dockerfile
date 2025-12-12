@@ -46,6 +46,8 @@ RUN pip install git+https://github.com/TeamFightingICE/Gym-FightingICE.git
 RUN mkdir /app
 WORKDIR /app
 COPY . .
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 RUN chown -R 1000:root .
 
 ENTRYPOINT ["sh", "entrypoint.sh"]

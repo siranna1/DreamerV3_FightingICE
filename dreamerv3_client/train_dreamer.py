@@ -11,6 +11,8 @@ from gym import spaces
 import ruamel.yaml as yaml
 from functools import partial as bind
 
+
+
 # --- PyFTG 関連のインポート ---
 from pyftg import AIInterface, FrameData, AudioData, RoundResult, ScreenData, Key, GameData, CommandCenter
 from pyftg.socket.aio.gateway import Gateway
@@ -54,16 +56,20 @@ class PyFTGAgent(AIInterface):
         self.game_started = False
         self.frame_data = None
         self.agent_name = name
+        self.last_hp = 0
+        self.last_opp_hp = 0
 
     def name(self) -> str: return self.agent_name
     def is_blind(self) -> bool: return False
 
     def initialize(self, game_data: GameData, player: bool):
-        print(f"[{self.agent_name}] Initialize called. PlayerID: {player}")
+        print(f"[{self.agent_name}] Initialize (Game Start). PlayerID: {player}")
         self.player = player
         self.cc = CommandCenter()
         self.game_started = True
         self.key = Key()
+        self.last_hp = 400
+        self.last_opp_hp = 400
 
     def close(self): pass
     def get_audio_data(self, audio_data: AudioData): pass
@@ -80,61 +86,69 @@ class PyFTGAgent(AIInterface):
 
         obs = self._extract_observation(self.frame_data)
         
+        me = self.frame_data.get_character(self.player)
+        opp = self.frame_data.get_character(not self.player)
+        
+        current_hp = me.hp if me else 0
+        current_opp_hp = opp.hp if opp else 0
+        
+        # 報酬: HP差分の変化
+        reward = (current_hp - self.last_hp) - (current_opp_hp - self.last_opp_hp)
+        
+        self.last_hp = current_hp
+        self.last_opp_hp = current_opp_hp
+
+        # キューが詰まらないように最新のみを保持
         while not self.obs_queue.empty():
             try: self.obs_queue.get_nowait()
             except queue.Empty: pass
-        self.obs_queue.put(obs)
+        
+        # (obs, reward, done)
+        self.obs_queue.put((obs, reward, False))
 
         try:
+            # タイムアウトを極短にして遅延を防ぐ
             action_idx = self.act_queue.get(timeout=0.001)
             command = ACTION_MAP[action_idx]
             self.cc.command_call(command)
         except queue.Empty:
-            pass
+            pass # アクションがないときは何もしない（前の入力を維持しない設定ならここでKeyクリアが必要かも）
 
         self.key = self.cc.get_skill_key()
 
     def input(self) -> Key:
         return self.key
 
-    def round_end(self, result: RoundResult): print(f"[{self.agent_name}] Round End")
-    def game_end(self): print(f"[{self.agent_name}] Game End")
+    def round_end(self, result: RoundResult):
+        print(f"[{self.agent_name}] Round End")
+        dummy_obs = np.zeros(15, dtype=np.float32)
+        # ラウンド終了時は done=True を送る
+        self.obs_queue.put((dummy_obs, 0.0, True))
+        self.last_hp = 400
+        self.last_opp_hp = 400
+
+    def game_end(self):
+        print(f"[{self.agent_name}] Game End")
+        dummy_obs = np.zeros(15, dtype=np.float32)
+        self.obs_queue.put((dummy_obs, 0.0, True))
 
     def _extract_observation(self, fd: FrameData):
         me = fd.get_character(self.player)
         opp = fd.get_character(not self.player)
         
-        me_hp = me.hp if me else 0
-        me_energy = me.energy if me else 0
-        me_x = me.x if me else 0
-        me_y = me.y if me else 0
-        me_sx = me.speed_x if me else 0
-        me_sy = me.speed_y if me else 0
-        me_air = 1.0 if me and me.state == "AIR" else 0.0
+        def get_val(char, attr, default=0):
+            return getattr(char, attr) if char else default
 
-        opp_hp = opp.hp if opp else 0
-        opp_energy = opp.energy if opp else 0
-        opp_x = opp.x if opp else 0
-        opp_y = opp.y if opp else 0
-        opp_sx = opp.speed_x if opp else 0
-        opp_sy = opp.speed_y if opp else 0
+        me_vals = [get_val(me, k) for k in ['hp', 'energy', 'x', 'y', 'speed_x', 'speed_y']]
+        opp_vals = [get_val(opp, k) for k in ['hp', 'energy', 'x', 'y', 'speed_x', 'speed_y']]
+        me_air = 1.0 if me and me.state == "AIR" else 0.0
         
         obs = np.array([
-            me_hp / 400.0,
-            me_energy / 300.0,
-            me_x / 960.0,
-            me_y / 640.0,
-            me_sx / 20.0,
-            me_sy / 20.0,
+            me_vals[0]/400.0, me_vals[1]/300.0, me_vals[2]/960.0, me_vals[3]/640.0, me_vals[4]/20.0, me_vals[5]/20.0,
             me_air,
-            opp_hp / 400.0,
-            opp_energy / 300.0,
-            opp_x / 960.0,
-            opp_y / 640.0,
-            opp_sx / 20.0,
-            opp_sy / 20.0,
-            (me_x - opp_x) / 960.0,
-            (me_y - opp_y) / 640.0
+            opp_vals[0]/400.0, opp_vals[1]/300.0, opp_vals[2]/960.0, opp_vals[3]/640.0, opp_vals[4]/20.0, opp_vals[5]/20.0,
+            (me_vals[2] - opp_vals[2])/960.0,
+            (me_vals[3] - opp_vals[3])/640.0
         ], dtype=np.float32)
         return obs
 
@@ -146,57 +160,83 @@ class FightingIceGymEnv(gym.Env):
         
         self.obs_queue = queue.Queue()
         self.act_queue = queue.Queue()
+        self.current_obs = np.zeros(15, dtype=np.float32)
         
         self.thread = threading.Thread(target=self._run_pyftg, daemon=True)
         self.thread.start()
         
-        print("Waiting for FightingICE connection and Game Start...")
+        # 初回起動待機
+        print("Waiting for FightingICE connection...")
         try:
-            self.current_obs = self.obs_queue.get(timeout=30) 
+            # ここはタイムアウトしてもエラーにせず、初期状態として進める
+            data = self.obs_queue.get(timeout=60) 
+            self.current_obs = data[0]
             print("FightingICE Game Started!")
         except queue.Empty:
-            print("Error: Connection timed out. The game did not start in 30 seconds.")
-            self.current_obs = np.zeros(15, dtype=np.float32)
+            print("Warning: Initial Connection Timed Out. (Server might be slow)")
 
     def _run_pyftg(self):
         async def main_loop():
             host = os.environ.get("FIGHTINGICE_HOST", "fightingice")
             port = int(os.environ.get("FIGHTINGICE_PORT", 31415))
             
-            print(f"Connecting to {host}:{port}...")
-            gateway = Gateway(host=host, port=port)
-            
-            agent1 = PyFTGAgent(self.obs_queue, self.act_queue, "DreamerAI")
-            gateway.register_ai("DreamerAI", agent1)
-            try:
-                # サーバー側の MctsAi23i と対戦
-                print("Requesting Game Start: DreamerAI vs MctsAi23i")
-                await gateway.run_game(["ZEN", "ZEN"], ["DreamerAI", "MctsAi23i"], 1000)
-            except Exception as e:
-                print(f"PyFTG Error: {e}")
-            finally:
-                await gateway.close()
+            while True:
+                print(f"Connecting to {host}:{port}...")
+                gateway = Gateway(host=host, port=port)
+                agent1 = PyFTGAgent(self.obs_queue, self.act_queue, "DreamerAI")
+                gateway.register_ai("DreamerAI", agent1)
+                
+                try:
+                    # MctsAi と対戦 (3ラウンド設定が効いていれば3ラウンド戦う)
+                    print("Requesting Game Start: DreamerAI vs MctsAi")
+                    await gateway.run_game(["ZEN", "ZEN"], ["DreamerAI", "MctsAi23i"], 1000)
+                except Exception as e:
+                    print(f"PyFTG Disconnected: {e}")
+                finally:
+                    await gateway.close()
+                
+                print("Reconnecting in 5 seconds...")
+                await asyncio.sleep(5)
 
         asyncio.run(main_loop())
 
+    # --- Gym API v0.21 (DreamerV3仕様) ---
+    
     def reset(self, seed=None, options=None):
-        if not self.obs_queue.empty():
-            self.current_obs = self.obs_queue.get()
-        return self.current_obs, {}
+        # 1. 残っている古いデータを破棄
+        while not self.obs_queue.empty():
+            try: self.obs_queue.get_nowait()
+            except queue.Empty: pass
+
+        # 2. 【修正】次の観測が来るまで「ブロッキングして」待つ
+        # 前回はここで待たずにreturnしていたため、直後のstepでタイムアウトしていた
+        print("Reset: Waiting for new observation...")
+        try:
+            # ゲーム開始orラウンド開始を待つ (タイムアウト長め)
+            obs, reward, done = self.obs_queue.get(timeout=30.0)
+            self.current_obs = obs
+        except queue.Empty:
+            print("Reset Timeout: Game did not start in time.")
+            # タイムアウトしても落ちないようにゼロ埋めを返す
+            self.current_obs = np.zeros(15, dtype=np.float32)
+
+        # obs のみを返す
+        return self.current_obs
 
     def step(self, action):
         self.act_queue.put(action)
         try:
-            self.current_obs = self.obs_queue.get(timeout=2.0)
-            reward = 0.0 
-            return self.current_obs, reward, False, False, {}
+            # 5秒待っても来なければタイムアウト（試合終了扱い）
+            obs, reward, done = self.obs_queue.get(timeout=5.0)
+            self.current_obs = obs
+            return obs, float(reward), done, {}
         except queue.Empty:
-            return self.current_obs, 0.0, True, False, {}
+            print("Step Timeout: Assuming round end.")
+            return self.current_obs, 0.0, True, {}
 
 # ----------------------------------------------------------------
-# 3. Factory 関数
+# Factory 関数
 # ----------------------------------------------------------------
-
 def make_env(config, index, **overrides):
     env = FightingIceGymEnv()
     env = from_gym.FromGym(env, obs_key='vector')
@@ -204,22 +244,18 @@ def make_env(config, index, **overrides):
     return env
 
 def make_agent(config):
-    # ダミー環境を作成して空間定義を取得
     class DummyEnv(gym.Env):
         def __init__(self):
             self.action_space = spaces.Discrete(len(ACTION_MAP))
             self.observation_space = spaces.Box(low=-2.0, high=2.0, shape=(15,), dtype=np.float32)
-    
     env = DummyEnv()
     env = from_gym.FromGym(env, obs_key='vector')
     env = embodied.wrappers.UnifyDtypes(env)
     
-    # 'reset' を除外したアクション空間を作成
     notlog = lambda k: not k.startswith('log/')
     act_space = {k: v for k, v in env.act_space.items() if k != 'reset'}
     obs_space = {k: v for k, v in env.obs_space.items() if notlog(k)}
 
-    # エージェント用設定の再構築
     agent_config = elements.Config(
         **config.agent,
         logdir=config.logdir,
@@ -232,65 +268,48 @@ def make_agent(config):
         replica=config.replica,
         replicas=config.replicas,
     )
-    
-    # 【重要】除外済みの act_space を渡す
     return agent_module.Agent(obs_space, act_space, agent_config)
 
 def make_replay(config, folder='replay', mode='train'):
     logdir = elements.Path(config.logdir)
-    directory = logdir / folder
-    capacity = config.replay.size
-    length = config.batch_length * config.consec_train + config.replay_context
     return embodied.replay.Replay(
-        length=length, 
-        capacity=int(capacity), 
+        length=config.batch_length * config.consec_train + config.replay_context,
+        capacity=int(config.replay.size),
         online=config.replay.online,
-        chunksize=config.replay.chunksize, 
-        directory=directory
+        chunksize=config.replay.chunksize,
+        directory=logdir / folder
     )
 
 def make_logger(config):
     logdir = elements.Path(config.logdir)
-    step = elements.Counter()
     outputs = [
         elements.logger.TerminalOutput(),
         elements.logger.JSONLOutput(logdir, 'metrics.jsonl'),
-    #tensorboardの設定頑張って
-    #    elements.logger.TensorBoardOutput(logdir),
     ]
-    return elements.Logger(step, outputs, multiplier=1)
+    # TensorBoardがエラーになる場合はコメントアウトのままにする
+    outputs.append(elements.logger.TensorBoardOutput(logdir))
+    return elements.Logger(elements.Counter(), outputs, multiplier=1)
 
-# 【修正】make_stream を正しく実装
 def make_stream(config, replay, mode):
     fn = bind(replay.sample, config.batch_size, mode)
-    stream = embodied.streams.Stateless(fn)
-    stream = embodied.streams.Consec(
-        stream,
+    return embodied.streams.Consec(
+        embodied.streams.Stateless(fn),
         length=config.batch_length if mode == 'train' else config.report_length,
         consec=config.consec_train if mode == 'train' else config.consec_report,
         prefix=config.replay_context,
         strict=(mode == 'train'),
         contiguous=True)
-    return stream
 
 # ----------------------------------------------------------------
-# 4. メイン処理
+# Main
 # ----------------------------------------------------------------
 def main():
     warnings.filterwarnings('ignore', '.*truncated to dtype int32.*')
-
+    
     config_path = repo_root / 'dreamerv3' / 'configs.yaml'
-    if not config_path.exists():
-        print(f"Error: Config file not found at {config_path}")
-        return
-
-    print(f"Loading configs from: {config_path}")
-    configs_text = elements.Path(config_path).read()
-    configs = yaml.YAML(typ='safe').load(configs_text)
+    configs = yaml.YAML(typ='safe').load(elements.Path(config_path).read())
     
     config = elements.Config(configs['defaults'])
-    
-    # FightingICE用のデフォルト設定
     fightingice_defaults = {
         'logdir': './log/dreamer_fightingice',
         'task': 'fightingice_custom',
@@ -300,21 +319,17 @@ def main():
         'batch_length': 64,
     }
     config = config.update(fightingice_defaults)
-
-    # 【修正】コマンドライン引数で設定を上書き (dreamer/main.py と同じ挙動)
-    # これにより --logdir や --batch_size などが使えます
     config = elements.Flags(config).parse(sys.argv[1:])
 
     logdir = elements.Path(config.logdir)
     print("Logdir:", logdir)
     logdir.mkdir()
     
-    # 学習実行用引数の準備（batch_sizeなどを明示的にコピー）
     args = elements.Config(
         **config.run,
         logdir=config.logdir,
-        batch_size=config.batch_size,      # 【追加】
-        batch_length=config.batch_length,  # 【追加】
+        batch_size=config.batch_size,
+        batch_length=config.batch_length,
         report_length=config.report_length,
         consec_train=config.consec_train,
         consec_report=config.consec_report,

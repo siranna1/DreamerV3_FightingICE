@@ -34,18 +34,16 @@ RUN pip install -U pip setuptools
 # RUN pip install https://github.com/danijar/minerl/releases/download/v0.4.4-patched/minerl_mirror-0.4.4-cp311-cp311-linux_x86_64.whl
 # RUN chown -R 1000:root /venv/lib/python3.11/site-packages/minerl
 
-RUN pip install tensorflow
 # Requirements
 RUN pip install jax[cuda]==0.5.0
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
-
 RUN pip install gym "pyftg>=2.0"
 RUN pip install git+https://github.com/TeamFightingICE/Gym-FightingICE.git
 # Source
 RUN mkdir /app
 WORKDIR /app
-COPY . .
+#COPY . .
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 RUN chown -R 1000:root .

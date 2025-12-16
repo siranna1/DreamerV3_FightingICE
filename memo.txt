@@ -1,8 +1,18 @@
+コマンド集
+
+fightingiceのコンテナは以下のコマンドで動かす
 docker run --rm -it --name fightingice --network fighting-net -v ${PWD}/FightingICE/log:/app/log j2130/fightingice
 でfightingiceを動かす。--network fighting-netでネットワークを作らないといけないらしい。
 なぜかちゃんと動かないから、docker exec -it fightingice bashでコンテナに入って
-xvfb-run -a java -cp FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/* Main --limithp 400 400 --grey-bg --pyftg-mode --input-sync
+xvfb-run -a java -cp FightingICE.jar:./lib/*:./lib/lwjgl/*:./lib/lwjgl/natives/linux/amd64/*:./lib/grpc/* Main --limithp 400 400 --grey-bg --pyftg-mode 
 でfightingICEを動かす
+
+dreamerv3はresearch/dreamerv3_clientで以下のコマンドで動かす。
+ docker run --rm -it --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1
+
+
+
+テスト用
  docker run --rm -it   --network fighting-net   -e FIGHTINGICE_HOST=fightingice   -e FIGHTINGICE_PORT=31415   j2130/pythontest
  でpythonの方を動かす。--networkは先ほどと同じもの、FIGHTINGICE_HOSTを前のコンテナの名前、ポートは指定している奴
 
@@ -12,13 +22,16 @@ fightingiceはよさそうだからdreamer側の作業に入った。
 dreamerv3_clientでやることにした。dockerfileも用意して新しく作る。train_dreamer.pyで学習を進める
 dreamerv3をインポートしてこようと思ったけどうまいこといかない。
 このイメージの実行は
- docker run --rm -it --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001
+ docker run --rm -it --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1
 これをdreamerv3_clientで実行
 
 fightingiceはresearchで
 docker run --rm -it --name fightingice --network fighting-net -v ${PWD}/FightingICE/log:/app/log j2130/fightingice 
 を実行
 課題
- tensorboardの設定
- ラウンド終了すると次のゲームを無理やり始めようとしてる。ゲームエンドは3ラウンドだからなんかよくないかも
- dreamerがチェックポイントをセーブした後なんかエラー出る。エラーはgeminiに投げたからみてやって
+済 tensorboardの設定
+済 ラウンド終了すると次のゲームを無理やり始めようとしてる。ゲームエンドは3ラウンドだからなんかよくないかも
+済 dreamerがチェックポイントをセーブした後なんかエラー出る。エラーはgeminiに投げたからみてやって
+
+ 12/16
+dreamerが並列でゲームを起動しようとしてたからエラーいっぱい出たらしい。docker runでrun.env 1と指定して一つだけ起動するようにした。将来は並列で動かす。 

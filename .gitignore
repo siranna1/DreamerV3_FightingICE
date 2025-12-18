@@ -7,6 +7,7 @@ tempfile-*
 tmpt9h0w7vx
 #ログ
 logdir/
+log/
 #一時ファイル
 *.o
 *.a
@@ -19,3 +20,6 @@ __pycache__/
 #大きなビルド済みバイナリ
 *.jar
 *.zip
+#test/
+#memo.txt
+BlindAI/

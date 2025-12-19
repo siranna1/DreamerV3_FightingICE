@@ -7,6 +7,12 @@ docker run --rm -it --name fightingice --network fighting-net -v ${PWD}/Fighting
 dreamerv3はresearch/dreamerv3_clientで以下のコマンドで動かす。
 docker run --rm -it --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1
 
+手元でキーボードと対戦させるには、dreamerv3のコンテナを/bin/bashで実行して
+docker run --rm -it --name j2130dreamer --network host --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3 /bin/bash
+コンテナ内で
+python play_dreamer.py --host 127.0.0.1 --logdir /app/log/002 --port 31415
+を実行させる
+
 テスト用
  docker run --rm -it   --network fighting-net   -e FIGHTINGICE_HOST=fightingice   -e FIGHTINGICE_PORT=31415   j2130/pythontest
  でpythonの方を動かす。--networkは先ほどと同じもの、FIGHTINGICE_HOSTを前のコンテナの名前、ポートは指定している奴

@@ -1,6 +1,10 @@
 #FROM ubuntu/jre:17-22.04_edge
 From ubuntu:22.04
 
+WORKDIR /app
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Java 17 (OpenJDK) をインストール
 RUN apt-get update && \
     apt-get install -y --no-install-recommends openjdk-21-jdk && \
@@ -17,10 +21,10 @@ RUN apt-get update && \
         fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-USER root
+#Fightingice.jarのコンパイル
+COPY ./src ./src
 
-COPY ./FightingICE.jar .
+#COPY ./FightingICE.jar .
 #COPY ./data/ai ./data/ai
 #COPY ./data/characters/ZEN/gSetting.txt ./data/characters/ZEN/gSetting.txt
 #COPY ./data/characters/ZEN/Motion.csv ./data/characters/ZEN/Motion.csv
@@ -31,12 +35,26 @@ COPY ./lib/lwjgl/natives/linux/amd64 /app/lib/
 #COPY ./run_ice.sh /usr/local/bin/run_ice.sh
 #RUN chmod +x /usr/local/bin/run_ice.sh
 
+#コンパイルの実行
+RUN mkdir bin && \
+    javac -encoding UTF-8 -d bin -cp "lib/*" $(find src -name "*.java") 
+
+RUN echo '#!/bin/sh\n\
+rm -f /tmp/.X1-lock\n\
+xvfb-run -a -s "-screen 0 1024x768x24" java -cp "bin:lib/*" Main "$@"\n"\
+' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["--limithp", "400", "400", "--pyftg-mode", "--gray-bg"]
+
+
 EXPOSE 31415/tcp
 EXPOSE 4242/tcp
 #音声ドライバーをnullにする
 ENV ALSOFT_DRIVERS=null
-# Javaの実行引数を定義
-ENV JAVA_ARGS "-cp FightingICE.jar:./lib/* Main --lightweight-mode"
+ # Javaの実行引数を定義
+# ENV JAVA_ARGS "-cp FightingICE.jar:./lib/* Main --lightweight-mode"
 
 #ENTRYPOINT [ "/opt/java/bin/java", "-cp", "FightingICE.jar:./lib/*", "Main", "--lightweight-mode" ]
 #CMD [ "--limithp", "400", "400", "--pyftg-mode" ]

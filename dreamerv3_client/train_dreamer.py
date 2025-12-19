@@ -11,7 +11,12 @@ from gym import spaces
 import ruamel.yaml as yaml
 from functools import partial as bind
 
-
+# 画像処理用
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+    print("Warning: opencv-python not found. Using slow numpy resizing.")
 
 # --- PyFTG 関連のインポート ---
 from pyftg import AIInterface, FrameData, AudioData, RoundResult, ScreenData, Key, GameData, CommandCenter
@@ -35,7 +40,7 @@ except ImportError as e:
     sys.exit(1)
 
 # ----------------------------------------------------------------
-# 2. カスタム Gym 環境 (PyFTG ラッパー)
+# 2. カスタム Gym 環境 (画像対応版)
 # ----------------------------------------------------------------
 
 ACTION_MAP = [
@@ -60,7 +65,7 @@ class PyFTGAgent(AIInterface):
         self.last_opp_hp = 0
 
     def name(self) -> str: return self.agent_name
-    def is_blind(self) -> bool: return False
+    def is_blind(self) -> bool: return False 
 
     def initialize(self, game_data: GameData, player: bool):
         print(f"[{self.agent_name}] Initialize (Game Start). PlayerID: {player}")
@@ -74,7 +79,10 @@ class PyFTGAgent(AIInterface):
     def close(self): pass
     def get_audio_data(self, audio_data: AudioData): pass
     def get_non_delay_frame_data(self, frame_data: FrameData): pass
-    def get_screen_data(self, screen_data: ScreenData): pass
+    
+    # 【変更】画像データを受け取る
+    def get_screen_data(self, screen_data: ScreenData):
+        self.screen_data = screen_data
 
     def get_information(self, frame_data: FrameData, is_control: bool):
         self.frame_data = frame_data
@@ -84,96 +92,93 @@ class PyFTGAgent(AIInterface):
         if not self.game_started or self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
             return
 
-        obs = self._extract_observation(self.frame_data)
+        # 1. 観測データの作成 (画像 + 数値)
+        obs = {}
         
+        # --- 画像処理 ---
+        if hasattr(self, 'screen_data') and self.screen_data is not None:
+            # PyFTGの仕様: display_bytes は bytes型
+            # FightingICEの画像は 960x640, RGB (またはBGRA)
+            raw_data = self.screen_data.display_bytes
+            try:
+                # バイト列をnumpy配列に変換
+                img = np.frombuffer(raw_data, dtype=np.uint8)
+                img = img.reshape((640, 960, 3)) # 高, 幅, ch
+                
+                # リサイズ (64x64)
+                if cv2:
+                    img = cv2.resize(img, (64, 64), interpolation=cv2.INTER_AREA)
+                else:
+                    # CV2がない場合の簡易リサイズ (間引き)
+                    img = img[::10, ::15] # 64x64に近いサイズに間引く
+                    # 必要ならパディング等調整
+                    
+                obs['image'] = img
+            except Exception as e:
+                # 画像処理失敗時は黒画像
+                print(f"Image Error: {e}")
+                obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
+        else:
+            print("No screen data available.")
+            print(f"hasattr(self, 'screen_data'): {hasattr(self, 'screen_data')}")
+            print(f"self.screen_data is None: {getattr(self, 'screen_data', None) is None}")
+            obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
+
+        # --- 報酬計算 ---
         me = self.frame_data.get_character(self.player)
         opp = self.frame_data.get_character(not self.player)
-        
         current_hp = me.hp if me else 0
         current_opp_hp = opp.hp if opp else 0
-        
-        # 報酬: HP差分の変化
         reward = (current_hp - self.last_hp) - (current_opp_hp - self.last_opp_hp)
-        
         self.last_hp = current_hp
         self.last_opp_hp = current_opp_hp
 
-        # キューが詰まらないように最新のみを保持
+        # キュー送信
         while not self.obs_queue.empty():
             try: self.obs_queue.get_nowait()
             except queue.Empty: pass
         
-        # (obs, reward, done)
         self.obs_queue.put((obs, reward, False))
 
+        # アクション実行
         try:
-            # タイムアウトを極短にして遅延を防ぐ
             action_idx = self.act_queue.get(timeout=0.001)
             command = ACTION_MAP[action_idx]
             self.cc.command_call(command)
         except queue.Empty:
-            pass # アクションがないときは何もしない（前の入力を維持しない設定ならここでKeyクリアが必要かも）
-
+            pass
         self.key = self.cc.get_skill_key()
 
-    def input(self) -> Key:
-        return self.key
+    def input(self) -> Key: return self.key
 
     def round_end(self, result: RoundResult):
         print(f"[{self.agent_name}] Round End")
-        dummy_obs = np.zeros(15, dtype=np.float32)
-        # ラウンド終了時は done=True を送る
+        dummy_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
         self.obs_queue.put((dummy_obs, 0.0, True))
         self.last_hp = 400
         self.last_opp_hp = 400
 
     def game_end(self):
         print(f"[{self.agent_name}] Game End")
-        dummy_obs = np.zeros(15, dtype=np.float32)
+        dummy_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
         self.obs_queue.put((dummy_obs, 0.0, True))
-
-    def _extract_observation(self, fd: FrameData):
-        me = fd.get_character(self.player)
-        opp = fd.get_character(not self.player)
-        
-        def get_val(char, attr, default=0):
-            return getattr(char, attr) if char else default
-
-        me_vals = [get_val(me, k) for k in ['hp', 'energy', 'x', 'y', 'speed_x', 'speed_y']]
-        opp_vals = [get_val(opp, k) for k in ['hp', 'energy', 'x', 'y', 'speed_x', 'speed_y']]
-        me_air = 1.0 if me and me.state == "AIR" else 0.0
-        
-        obs = np.array([
-            me_vals[0]/400.0, me_vals[1]/300.0, me_vals[2]/960.0, me_vals[3]/640.0, me_vals[4]/20.0, me_vals[5]/20.0,
-            me_air,
-            opp_vals[0]/400.0, opp_vals[1]/300.0, opp_vals[2]/960.0, opp_vals[3]/640.0, opp_vals[4]/20.0, opp_vals[5]/20.0,
-            (me_vals[2] - opp_vals[2])/960.0,
-            (me_vals[3] - opp_vals[3])/640.0
-        ], dtype=np.float32)
-        return obs
 
 class FightingIceGymEnv(gym.Env):
     def __init__(self):
         super().__init__()
         self.action_space = spaces.Discrete(len(ACTION_MAP))
-        self.observation_space = spaces.Box(low=-2.0, high=2.0, shape=(15,), dtype=np.float32)
+        # 【変更】観測空間を画像に変更 (64x64 RGB)
+        self.observation_space = spaces.Dict({
+            'image': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+        })
         
         self.obs_queue = queue.Queue()
         self.act_queue = queue.Queue()
-        self.current_obs = np.zeros(15, dtype=np.float32)
+        self.current_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
         
         self.thread = threading.Thread(target=self._run_pyftg, daemon=True)
         self.thread.start()
-        
-        # 初回起動待機
         print("Waiting for FightingICE connection...")
-        try:
-            # ここはタイムアウトしてもエラーにせず、初期状態として進める
-            data = self.obs_queue.get(timeout=60) 
-            self.current_obs = data[0]
-            print("FightingICE Game Started!")
-        except queue.Empty:
-            print("Warning: Initial Connection Timed Out. (Server might be slow)")
 
     def _run_pyftg(self):
         async def main_loop():
@@ -185,53 +190,40 @@ class FightingIceGymEnv(gym.Env):
                 gateway = Gateway(host=host, port=port)
                 agent1 = PyFTGAgent(self.obs_queue, self.act_queue, "DreamerAI")
                 gateway.register_ai("DreamerAI", agent1)
-                
                 try:
-                    # MctsAi と対戦 (3ラウンド設定が効いていれば3ラウンド戦う)
                     print("Requesting Game Start: DreamerAI vs MctsAi")
                     await gateway.run_game(["ZEN", "ZEN"], ["DreamerAI", "MctsAi23i"], 1000)
                 except Exception as e:
                     print(f"PyFTG Disconnected: {e}")
                 finally:
                     await gateway.close()
-                
                 print("Reconnecting in 5 seconds...")
                 await asyncio.sleep(5)
-
         asyncio.run(main_loop())
 
-    # --- Gym API v0.21 (DreamerV3仕様) ---
-    
     def reset(self, seed=None, options=None):
-        # 1. 残っている古いデータを破棄
         while not self.obs_queue.empty():
             try: self.obs_queue.get_nowait()
             except queue.Empty: pass
 
-        # 2. 【修正】次の観測が来るまで「ブロッキングして」待つ
-        # 前回はここで待たずにreturnしていたため、直後のstepでタイムアウトしていた
         print("Reset: Waiting for new observation...")
         try:
-            # ゲーム開始orラウンド開始を待つ (タイムアウト長め)
             obs, reward, done = self.obs_queue.get(timeout=30.0)
             self.current_obs = obs
         except queue.Empty:
-            print("Reset Timeout: Game did not start in time.")
-            # タイムアウトしても落ちないようにゼロ埋めを返す
-            self.current_obs = np.zeros(15, dtype=np.float32)
+            print("Reset Timeout.")
+            self.current_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
 
-        # obs のみを返す
         return self.current_obs
 
     def step(self, action):
         self.act_queue.put(action)
         try:
-            # 5秒待っても来なければタイムアウト（試合終了扱い）
             obs, reward, done = self.obs_queue.get(timeout=5.0)
             self.current_obs = obs
             return obs, float(reward), done, {}
         except queue.Empty:
-            print("Step Timeout: Assuming round end.")
+            print("Step Timeout.")
             return self.current_obs, 0.0, True, {}
 
 # ----------------------------------------------------------------
@@ -239,17 +231,25 @@ class FightingIceGymEnv(gym.Env):
 # ----------------------------------------------------------------
 def make_env(config, index, **overrides):
     env = FightingIceGymEnv()
-    env = from_gym.FromGym(env, obs_key='vector')
+    # 【変更】obs_key は指定しない (Dictのまま渡すため) または 'image' をキーとして使う設定を確認
+    # DreamerV3 の FromGym は obs_key='image' を指定するとそのキーの値だけを取り出してしまうが、
+    # Dict space の場合は obs_key を指定せず、そのまま渡して UnifyDtypes で処理させるのが一般的
+    # ここでは obs_key を指定せず、Dict全体を流す設定にします
+    env = from_gym.FromGym(env) 
     env = embodied.wrappers.UnifyDtypes(env)
     return env
 
 def make_agent(config):
+    # ダミー環境も画像対応
     class DummyEnv(gym.Env):
         def __init__(self):
             self.action_space = spaces.Discrete(len(ACTION_MAP))
-            self.observation_space = spaces.Box(low=-2.0, high=2.0, shape=(15,), dtype=np.float32)
+            self.observation_space = spaces.Dict({
+                'image': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+            })
+            
     env = DummyEnv()
-    env = from_gym.FromGym(env, obs_key='vector')
+    env = from_gym.FromGym(env)
     env = embodied.wrappers.UnifyDtypes(env)
     
     notlog = lambda k: not k.startswith('log/')
@@ -285,9 +285,8 @@ def make_logger(config):
     outputs = [
         elements.logger.TerminalOutput(),
         elements.logger.JSONLOutput(logdir, 'metrics.jsonl'),
+        elements.logger.TensorBoardOutput(logdir), 
     ]
-    # TensorBoardがエラーになる場合はコメントアウトのままにする
-    outputs.append(elements.logger.TensorBoardOutput(logdir))
     return elements.Logger(elements.Counter(), outputs, multiplier=1)
 
 def make_stream(config, replay, mode):
@@ -317,6 +316,7 @@ def main():
         'run.log_every': 60,
         'batch_size': 16,
         'batch_length': 64,
+        'run.envs': 1, # シングル環境
     }
     config = config.update(fightingice_defaults)
     config = elements.Flags(config).parse(sys.argv[1:])
@@ -336,7 +336,7 @@ def main():
         replay_context=config.replay_context,
     )
 
-    print("Starting training...")
+    print("Starting training (Visual Input)...")
     embodied.run.train(
         bind(make_agent, config),
         bind(make_replay, config, 'replay'),

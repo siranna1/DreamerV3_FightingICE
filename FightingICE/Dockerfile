@@ -46,7 +46,7 @@ xvfb-run -a -s "-screen 0 1024x768x24" java -cp "bin:lib/*" Main "$@"\n"\
     chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["--limithp", "400", "400", "--pyftg-mode", "--gray-bg"]
+CMD ["--limithp", "400", "400", "--pyftg-mode", "--grey-bg"]
 
 
 EXPOSE 31415/tcp

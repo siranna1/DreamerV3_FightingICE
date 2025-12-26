@@ -5,7 +5,7 @@ docker run --rm -it -d --name fightingice --network fighting-net -v ~/research/F
 でfightingiceを動かす。--network fighting-netでネットワークを作らないといけないらしい。
 
 dreamerv3はresearch/dreamerv3_clientで以下のコマンドで動かす。
-docker run --rm -it -d --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1
+docker run --rm -it -d --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1　--replay.size 1e6 --ai2 BlackMamba
 
 tensorboardは以下のコマンドで動かす
 docker run --rm -v ~/research/dreamerv3_client/log:/logdir -p 6007:6006 tensorflow/tensorflow tensorboard --logdir /logdir --bind_all
@@ -39,3 +39,9 @@ docker run --rm -it --name fightingice --network fighting-net -v ${PWD}/Fighting
 
  12/16
 dreamerが並列でゲームを起動しようとしてたからエラーいっぱい出たらしい。docker runでrun.env 1と指定して一つだけ起動するようにした。将来は並列で動かす。 
+
+手元と対戦できるようにした。dreamerのAI弱すぎる。こっちに近づいてこない
+12/25
+調べたら今までの大会に出てたAIも公開されてたから、音だけのルールに代わる22の前の2021の大会の優勝AIと学習させてみたい。手元でキーボードで戦ったけど全然勝てなかった。
+そのAIはppoという手法で自己対戦で学習させたらしい。
+学習を始めるコマンドで使うAIとかを指定できるようにした

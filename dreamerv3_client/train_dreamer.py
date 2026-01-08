@@ -11,6 +11,7 @@ from gym import spaces
 import ruamel.yaml as yaml
 from functools import partial as bind
 import argparse
+import random
 
 # 画像処理用
 try:
@@ -52,7 +53,7 @@ ACTION_MAP = [
 ]
 
 class PyFTGAgent(AIInterface):
-    def __init__(self, obs_queue, act_queue, name="DreamerAI"):
+    def __init__(self, obs_queue, act_queue, name="DreamerAI", game_end_event=None):
         super().__init__()
         self.obs_queue = obs_queue
         self.act_queue = act_queue
@@ -64,6 +65,7 @@ class PyFTGAgent(AIInterface):
         self.agent_name = name
         self.last_hp = 400
         self.last_opp_hp = 400
+        self.game_end_event = game_end_event 
 
     def name(self) -> str: return self.agent_name
     def is_blind(self) -> bool: return False 
@@ -92,7 +94,6 @@ class PyFTGAgent(AIInterface):
         if not self.game_started or self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
             return
 
-        # 観測データ作成
         obs = {}
         if hasattr(self, 'screen_data') and self.screen_data is not None:
             raw_data = self.screen_data.display_bytes
@@ -109,7 +110,6 @@ class PyFTGAgent(AIInterface):
         else:
             obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
 
-        # 報酬計算
         me = self.frame_data.get_character(self.player)
         opp = self.frame_data.get_character(not self.player)
         current_hp = me.hp if me else 0
@@ -143,11 +143,20 @@ class PyFTGAgent(AIInterface):
 
     def game_end(self):
         print(f"[{self.agent_name}] Game End")
-        dummy_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
-        self.obs_queue.put((dummy_obs, 0.0, True))
+        # 【修正点】game_end では obs_queue.put を行わない！
+        # これにより、reset() は次のゲームが始まって有効なフレームが来るまで待機するようになる。
+        # self.obs_queue.put((dummy_obs, 0.0, True)) 
+        
+        if self.game_end_event:
+            try:
+                loop = self.game_end_event._loop
+                if not loop.is_closed():
+                    loop.call_soon_threadsafe(self.game_end_event.set)
+            except Exception as e:
+                print(f"Warning: Failed to set game_end_event: {e}")
 
 class FightingIceGymEnv(gym.Env):
-    def __init__(self, char1="ZEN", char2="ZEN", ai1="DreamerAI", ai2="MctsAi23i"):
+    def __init__(self, char1="ZEN", char2="ZEN", ai1="DreamerAI", opponents=["MctsAi23i"]):
         super().__init__()
         self.action_space = spaces.Discrete(len(ACTION_MAP))
         self.observation_space = spaces.Dict({
@@ -161,10 +170,9 @@ class FightingIceGymEnv(gym.Env):
         self.char1 = char1
         self.char2 = char2
         self.ai1 = ai1
-        self.ai2 = ai2
+        self.opponents = opponents
         
-        # --- DEBUG: ここで受け取った値を確認 ---
-        print(f"DEBUG: FightingIceGymEnv Initialized with P1={self.ai1}, P2={self.ai2}")
+        print(f"DEBUG: FightingIceGymEnv Initialized with P1={self.ai1}, Opponents={self.opponents}")
 
         self.thread = threading.Thread(target=self._run_pyftg, daemon=True)
         self.thread.start()
@@ -175,20 +183,42 @@ class FightingIceGymEnv(gym.Env):
             port = int(os.environ.get("FIGHTINGICE_PORT", 31415))
             
             while True:
-                print(f"Connecting to {host}:{port}...")
+                print(f"Connecting to {host}:{port}...", flush=True)
                 gateway = Gateway(host=host, port=port)
-                agent1 = PyFTGAgent(self.obs_queue, self.act_queue, self.ai1)
+                
+                game_end_event = asyncio.Event()
+                
+                agent1 = PyFTGAgent(self.obs_queue, self.act_queue, self.ai1, game_end_event)
                 gateway.register_ai(self.ai1, agent1)
+                
                 try:
-                    # --- DEBUG: 実際にサーバーに送るリクエスト ---
-                    print(f"DEBUG: Sending Game Request -> {self.char1}:{self.ai1} vs {self.char2}:{self.ai2}")
-                    await gateway.run_game([self.char1, self.char2], [self.ai1, self.ai2], 1000)
+                    current_opp = random.choice(self.opponents)
+                    print(f"Requesting Game Start: {self.char1}:{self.ai1} vs {self.char2}:{current_opp}", flush=True)
+                    
+                    game_task = asyncio.create_task(
+                        gateway.run_game([self.char1, self.char2], [self.ai1, current_opp], 1)
+                    )
+                    end_task = asyncio.create_task(game_end_event.wait())
+                    
+                    done, pending = await asyncio.wait(
+                        [end_task, game_task],
+                        return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    for task in pending:
+                        task.cancel()
+                        
+                    print("DEBUG: One game session finished.", flush=True)
+
+                except asyncio.IncompleteReadError:
+                    pass
                 except Exception as e:
-                    print(f"PyFTG Disconnected: {e}")
+                    print(f"PyFTG Disconnected or Error: {e}", flush=True)
                 finally:
                     await gateway.close()
-                print("Reconnecting in 5 seconds...")
-                await asyncio.sleep(5)
+                
+                print("Reconnecting in 2 seconds for next opponent...", flush=True)
+                await asyncio.sleep(2) 
         asyncio.run(main_loop())
 
     def reset(self, seed=None, options=None):
@@ -196,8 +226,9 @@ class FightingIceGymEnv(gym.Env):
             try: self.obs_queue.get_nowait()
             except queue.Empty: pass
 
-        print("Reset: Waiting for new observation...")
+        # print("Reset: Waiting for new observation...")
         try:
+            # 修正の影響: Game Endでデータが来なくなるので、ここで長時間待つことになる（正常）
             obs, reward, done = self.obs_queue.get(timeout=30.0)
             self.current_obs = obs
         except queue.Empty:
@@ -213,21 +244,20 @@ class FightingIceGymEnv(gym.Env):
             return obs, float(reward), done, {}
         except queue.Empty:
             print("Step Timeout.")
+            # タイムアウト時も一応エピソード終了扱いにする
             return self.current_obs, 0.0, True, {}
 
 # ----------------------------------------------------------------
 # Factory 関数
 # ----------------------------------------------------------------
 
-# 修正: configからは取得せず、引数で受け取る
-# *args, **kwargs を追加して、Dreamerが余分な引数(config, index等)を渡してきても無視できるようにする
-def make_env(config, char1, char2, ai1, ai2, *args, **kwargs):
-    print(f"DEBUG: make_env called. Setting ai2 to '{ai2}'")
+def make_env(config, char1, char2, ai1, opponents, *args, **kwargs):
+    print(f"DEBUG: make_env called. Opponents list: {opponents}")
     env = FightingIceGymEnv(
         char1=char1,
         char2=char2,
         ai1=ai1,
-        ai2=ai2
+        opponents=opponents
     )
     env = from_gym.FromGym(env) 
     env = embodied.wrappers.UnifyDtypes(env)
@@ -297,30 +327,25 @@ def make_stream(config, replay, mode):
 def main():
     warnings.filterwarnings('ignore', '.*truncated to dtype int32.*')
     
-    # DEBUG: コマンドライン引数をそのまま表示
-    print("="*40)
-    print("DEBUG: sys.argv received from shell:")
-    print(sys.argv)
-    print("="*40)
-
-    # 1. argparse で独自の引数を受け取る
     parser = argparse.ArgumentParser(description="DreamerV3 Training for FightingICE")
     parser.add_argument('--char1', type=str, default='ZEN', help='Character for Player 1')
     parser.add_argument('--char2', type=str, default='ZEN', help='Character for Player 2')
     parser.add_argument('--ai1', type=str, default='DreamerAI', help='AI name for Player 1')
-    parser.add_argument('--ai2', type=str, default='MctsAi23i', help='AI name for Player 2')
+    parser.add_argument('--opponents', type=str, nargs='+', default=['MctsAi23i'], help='List of opponent AIs')
     
-    # 重要なポイント: DreamerV3用の引数(--logdirなど)を無視して、定義した引数だけ取る
     args, remaining_argv = parser.parse_known_args()
     
-    print(f"DEBUG: Parsed Arguments -> ai1={args.ai1}, ai2={args.ai2}")
+    print("="*40)
+    print(f"FightingICE Settings from CLI:")
+    print(f"  P1: {args.ai1} ({args.char1})")
+    print(f"  P2 (Opponents Pool): {args.opponents}")
+    print("="*40)
 
-    # 2. DreamerV3 の Config 読み込み
+    # Config 読み込み
     config_path = repo_root / 'dreamerv3' / 'configs.yaml'
     configs = yaml.YAML(typ='safe').load(elements.Path(config_path).read())
     config = elements.Config(configs['defaults'])
     
-    # DreamerV3 の設定 (char1等は含めない！Config汚染を防ぐ)
     fightingice_defaults = {
         'logdir': './log/dreamer_fightingice',
         'task': 'fightingice_custom',
@@ -331,8 +356,6 @@ def main():
         'run.envs': 1,
     }
     config = config.update(fightingice_defaults)
-    
-    # 残りの引数(logdirなど)をDreamerのConfigに適用
     config = elements.Flags(config).parse(remaining_argv)
 
     logdir = elements.Path(config.logdir)
@@ -350,14 +373,12 @@ def main():
         replay_context=config.replay_context,
     )
 
-    print(f"Starting training: {args.ai1}({args.char1}) vs {args.ai2}({args.char2})")
+    print(f"Starting training loop against: {args.opponents}")
     
-    # 3. bind で make_env に CLIから取得した値を埋め込む
-    # ここで値を固定するので、make_env 呼び出し時には args.ai2 が必ず使われます
     embodied.run.train(
         bind(make_agent, config),
         bind(make_replay, config, 'replay'),
-        bind(make_env, config, args.char1, args.char2, args.ai1, args.ai2),
+        bind(make_env, config, args.char1, args.char2, args.ai1, args.opponents),
         bind(make_stream, config),
         bind(make_logger, config),
         run_args

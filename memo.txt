@@ -6,6 +6,7 @@ docker run --rm -it -d --name fightingice --network fighting-net -v ~/research/F
 
 dreamerv3はresearch/dreamerv3_clientで以下のコマンドで動かす。
 docker run --rm -it -d --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/001 --run.envs 1　--replay.size 1e6 --ai2 BlackMamba
+docker run --rm -it -d --name j2130dreamer --network fighting-net --gpus '"device=1"' --shm-size=4g -e FIGHTINGICE_HOST=fightingice -e FIGHTINGIOCE_PORT=31415 -v ~/research/dreamerv3:/app/dreamerv3 -v ~/research/dreamerv3_client/log:/app/log -v ~/research/dreamerv3_client:/app j2130/dreamerv3  python train_dreamer.py --logdir /app/log/003 --replay.size 2e6 --opponents BlackMamba EggTart IBM_AI MctsAi23i
 
 tensorboardは以下のコマンドで動かす
 docker run --rm -v ~/research/dreamerv3_client/log:/logdir -p 6007:6006 tensorflow/tensorflow tensorboard --logdir /logdir --bind_all
@@ -53,3 +54,11 @@ dreamerが並列でゲームを起動しようとしてたからエラーいっ�
 1/7
 意外と勝てるようになってた。スコアのグラフにスムージングをかけると+180になるぐらいには勝てるようになってた。
 まあブレがすごいんだけど。あまりにもファイルが多すぎたからreplayを2500だけ残して消した。
+
+1/8
+やっぱり対blackmaba専用みたいな動きをしてるから、敵のAIを複数のものからランダムに選ぶようにした。
+敵のAIは2021年の大会にでたAIのうちjar形式で提供しているもの。そのほうがAIを動かすのが楽だから。
+pythonで実装してるような奴は、性能評価的な感じで使っちゃおうかな。でも性能評価するなら2020とかほかの年のAIすべてと戦わせて戦績見たほうがいいのかな。
+今まで対戦させてきたAIは向こうから向かってくるタイプだからかdreamerAIが常に同じ場所で技を振り続けるみたいな動きをしていたけど、
+EggTartというAIは画面端まで逃げて攻撃ボタン押すみたいな動きをするからいいかも。dreamerAIが自分から敵に向かっていくようになったら理想。
+たまたま2021年出場AIに逃げまくるやつがいてよかった。

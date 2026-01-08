@@ -40,6 +40,15 @@ except ImportError as e:
     print(f"Import Error: {e}")
     sys.exit(1)
 
+try:
+    from elements import checkpoint as elements_ckpt
+    # elementsライブラリが "存在しない" と嘘をつくのを防ぐため、
+    # Python標準の os.path.exists を使うように強制的に書き換える
+    elements_ckpt.exists = lambda p: os.path.exists(str(p))
+    print("Patched elements.checkpoint.exists to use os.path.exists")
+except ImportError:
+    pass
+
 ACTION_MAP = [
     "STAND_B", "CROUCH_B", "STAND_A", "CROUCH_A", 
     "FORWARD_WALK", "BACK_STEP", "JUMP", "CROUCH", "STAND",
@@ -54,13 +63,13 @@ class DreamerInferenceAgent(AIInterface):
     def __init__(self, policy_fn, initial_state, name="DreamerAI", blind=False):
         super().__init__()
         self.policy_fn = policy_fn
-        self.initial_state = initial_state # 初期状態を保持
+        self.initial_state = initial_state 
         self.cc = CommandCenter()
         self.key = Key()
         self.player = True 
         self.agent_name = name
         self.blind = blind
-        self.agent_state = initial_state # 初期化
+        self.agent_state = initial_state 
 
     def name(self) -> str: return self.agent_name
     def is_blind(self) -> bool: return self.blind
@@ -71,7 +80,6 @@ class DreamerInferenceAgent(AIInterface):
         self.player = player
         self.cc = CommandCenter()
         self.key = Key()
-        # エピソード開始時に内部状態を初期状態にリセット
         self.agent_state = self.initial_state
 
     def close(self):
@@ -94,7 +102,7 @@ class DreamerInferenceAgent(AIInterface):
             if self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
                 return
 
-            # 1. 観測データの作成 (画像のみ)
+            # 1. 観測データの作成
             obs = {}
             
             if hasattr(self, 'screen_data') and self.screen_data is not None:
@@ -113,29 +121,22 @@ class DreamerInferenceAgent(AIInterface):
                 obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
 
             # 2. DreamerV3 ポリシーの実行
-            # バッチ次元を追加 (batch_size=1)
             obs = {k: v[None] for k, v in obs.items()}
             
-            # ダミー入力
-            # init_policy で生成された状態を使う場合、is_first は管理不要かもしれませんが、
-            # Dreamerの仕様に合わせて念のため入力します。
             is_first = (self.agent_state is self.initial_state)
             obs['reward'] = np.array([0.0], dtype=np.float32)
             obs['is_first'] = np.array([is_first], dtype=bool)
             obs['is_last'] = np.array([False], dtype=bool)
             obs['is_terminal'] = np.array([False], dtype=bool)
 
-            # 【修正】引数の順番を (carry, obs) に変更
             result = self.policy_fn(self.agent_state, obs)
             
             if result is None:
                 print("Error: policy_fn returned None!")
                 return
             
-            # 結果を受け取る (carry, acts, outs)
             self.agent_state, outs, _ = result
             
-            # アクションを取り出す
             if 'action' in outs:
                 action_idx = int(outs['action'][0])
                 if 0 <= action_idx < len(ACTION_MAP):
@@ -168,6 +169,13 @@ def main():
     parser.add_argument('--logdir', type=str, default='/app/log/001') 
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=31415)
+    
+    # --- 追加: 対戦設定 ---
+    parser.add_argument('--char1', type=str, default='ZEN', help='Character for Player 1')
+    parser.add_argument('--char2', type=str, default='ZEN', help='Character for Player 2')
+    parser.add_argument('--ai1', type=str, default='DreamerAI', help='AI name for Player 1')
+    parser.add_argument('--ai2', type=str, default='MctsAi23i', help='AI name for Player 2')
+    
     args_cli = parser.parse_args()
 
     logdir_path = pathlib.Path(args_cli.logdir)
@@ -214,7 +222,7 @@ def main():
         report_length=config.report_length,
         replica=config.replica,
         replicas=config.replicas,
-        batch_size=config.batch_size, # 1
+        batch_size=config.batch_size, 
         batch_length=config.batch_length, 
         logdir=config.logdir,
     )
@@ -222,29 +230,44 @@ def main():
     print("Initializing Agent...")
     agent = agent_module.Agent(obs_space, act_space, agent_config)
     
-    # --- Checkpoint ---
+    # --- Checkpoint (修正版: 自動フォールバック機能付き) ---
     ckpt_dir = logdir_path / 'ckpt'
     print(f"Looking for checkpoints in: {ckpt_dir}")
     
-    latest_ckpt = None
+    agent_loaded = False
+
     if ckpt_dir.exists():
+        # 日付順にソートし、新しい順に並べる (reverse=True)
         files = [f for f in ckpt_dir.iterdir() if f.name != 'latest' and not f.name.startswith('.')]
-        if files:
-            files = sorted(files, key=lambda x: x.name)
-            latest_ckpt = files[-1]
-            print(f"Found checkpoint file: {latest_ckpt}")
+        files = sorted(files, key=lambda x: x.name, reverse=True)
+        
+        for ckpt_candidate in files:
+            try:
+                print(f"Attempting to load checkpoint: {ckpt_candidate.name}")
+                
+                # パッチ対応: ライブラリのバグ回避用（前回の修正と同様）
+                load_path = str(ckpt_candidate)
+                
+                checkpoint = elements.Checkpoint()
+                checkpoint.agent = agent
+                
+                # 読み込み試行
+                checkpoint.load(load_path, keys=['agent'])
+                
+                print(f"Successfully loaded checkpoint: {ckpt_candidate.name}")
+                agent_loaded = True
+                break  # 成功したらループを抜ける
+
+            except Exception as e:
+                print(f"Warning: Failed to load {ckpt_candidate.name}.")
+                print(f"Reason: {e}")
+                print("Trying the next older checkpoint...")
+                continue
     
-    if latest_ckpt and latest_ckpt.exists():
-        print(f"Loading checkpoint from: {latest_ckpt}")
-        checkpoint = elements.Checkpoint()
-        checkpoint.agent = agent
-        checkpoint.load(str(latest_ckpt), keys=['agent'])
-        print("Checkpoint loaded successfully!")
-    else:
-        print(f"Error: No valid checkpoint found in {ckpt_dir}")
+    if not agent_loaded:
+        print(f"Error: No valid checkpoint found in {ckpt_dir}. Exiting.")
         sys.exit(1)
-    
-    # 【修正】初期状態 (initial_state) の生成
+       
     print("Generating initial state...")
     initial_state = agent.init_policy(batch_size=1)
     
@@ -253,16 +276,18 @@ def main():
     # Gateway
     async def run_game():
         gateway = Gateway(host=args_cli.host, port=args_cli.port)
-        # 【修正】initial_state を渡す
-        ai_agent = DreamerInferenceAgent(policy_fn, initial_state, name="DreamerAI")
-        gateway.register_ai("DreamerAI", ai_agent)
+        
+        # args_cli.ai1 の名前で登録する (デフォルト: DreamerAI)
+        ai_agent = DreamerInferenceAgent(policy_fn, initial_state, name=args_cli.ai1)
+        gateway.register_ai(args_cli.ai1, ai_agent)
         
         print(f"Connected to {args_cli.host}:{args_cli.port}")
         print("Waiting for game start...")
         
         try:
-            print("Starting Game: P1=DreamerAI, P2=KeyBoard")
-            await gateway.run_game(["ZEN", "ZEN"], ["DreamerAI", "KeyBoard"], 1)
+            print(f"Starting Game: {args_cli.ai1}({args_cli.char1}) vs {args_cli.ai2}({args_cli.char2})")
+            # 指定されたキャラクターとAI名でゲームを開始
+            await gateway.run_game([args_cli.char1, args_cli.char2], [args_cli.ai1, args_cli.ai2], 1)
         except Exception as e:
             print(f"Game finished or error in run_game: {e}")
             traceback.print_exc()

@@ -10,6 +10,7 @@ import gym
 from gym import spaces
 import ruamel.yaml as yaml
 from functools import partial as bind
+import argparse
 
 # 画像処理用
 try:
@@ -40,7 +41,7 @@ except ImportError as e:
     sys.exit(1)
 
 # ----------------------------------------------------------------
-# 2. カスタム Gym 環境 (画像対応版)
+# 2. カスタム Gym 環境
 # ----------------------------------------------------------------
 
 ACTION_MAP = [
@@ -61,8 +62,8 @@ class PyFTGAgent(AIInterface):
         self.game_started = False
         self.frame_data = None
         self.agent_name = name
-        self.last_hp = 0
-        self.last_opp_hp = 0
+        self.last_hp = 400
+        self.last_opp_hp = 400
 
     def name(self) -> str: return self.agent_name
     def is_blind(self) -> bool: return False 
@@ -80,7 +81,6 @@ class PyFTGAgent(AIInterface):
     def get_audio_data(self, audio_data: AudioData): pass
     def get_non_delay_frame_data(self, frame_data: FrameData): pass
     
-    # 【変更】画像データを受け取る
     def get_screen_data(self, screen_data: ScreenData):
         self.screen_data = screen_data
 
@@ -92,39 +92,24 @@ class PyFTGAgent(AIInterface):
         if not self.game_started or self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
             return
 
-        # 1. 観測データの作成 (画像 + 数値)
+        # 観測データ作成
         obs = {}
-        
-        # --- 画像処理 ---
         if hasattr(self, 'screen_data') and self.screen_data is not None:
-            # PyFTGの仕様: display_bytes は bytes型
-            # FightingICEの画像は 960x640, RGB (またはBGRA)
             raw_data = self.screen_data.display_bytes
             try:
-                # バイト列をnumpy配列に変換
                 img = np.frombuffer(raw_data, dtype=np.uint8)
-                img = img.reshape((640, 960, 3)) # 高, 幅, ch
-                
-                # リサイズ (64x64)
+                img = img.reshape((640, 960, 3))
                 if cv2:
                     img = cv2.resize(img, (64, 64), interpolation=cv2.INTER_AREA)
                 else:
-                    # CV2がない場合の簡易リサイズ (間引き)
-                    img = img[::10, ::15] # 64x64に近いサイズに間引く
-                    # 必要ならパディング等調整
-                    
+                    img = img[::10, ::15] 
                 obs['image'] = img
             except Exception as e:
-                # 画像処理失敗時は黒画像
-                print(f"Image Error: {e}")
                 obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
         else:
-            print("No screen data available.")
-            print(f"hasattr(self, 'screen_data'): {hasattr(self, 'screen_data')}")
-            print(f"self.screen_data is None: {getattr(self, 'screen_data', None) is None}")
             obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
 
-        # --- 報酬計算 ---
+        # 報酬計算
         me = self.frame_data.get_character(self.player)
         opp = self.frame_data.get_character(not self.player)
         current_hp = me.hp if me else 0
@@ -133,14 +118,12 @@ class PyFTGAgent(AIInterface):
         self.last_hp = current_hp
         self.last_opp_hp = current_opp_hp
 
-        # キュー送信
         while not self.obs_queue.empty():
             try: self.obs_queue.get_nowait()
             except queue.Empty: pass
         
         self.obs_queue.put((obs, reward, False))
 
-        # アクション実行
         try:
             action_idx = self.act_queue.get(timeout=0.001)
             command = ACTION_MAP[action_idx]
@@ -164,10 +147,9 @@ class PyFTGAgent(AIInterface):
         self.obs_queue.put((dummy_obs, 0.0, True))
 
 class FightingIceGymEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, char1="ZEN", char2="ZEN", ai1="DreamerAI", ai2="MctsAi23i"):
         super().__init__()
         self.action_space = spaces.Discrete(len(ACTION_MAP))
-        # 【変更】観測空間を画像に変更 (64x64 RGB)
         self.observation_space = spaces.Dict({
             'image': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
         })
@@ -176,9 +158,16 @@ class FightingIceGymEnv(gym.Env):
         self.act_queue = queue.Queue()
         self.current_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
         
+        self.char1 = char1
+        self.char2 = char2
+        self.ai1 = ai1
+        self.ai2 = ai2
+        
+        # --- DEBUG: ここで受け取った値を確認 ---
+        print(f"DEBUG: FightingIceGymEnv Initialized with P1={self.ai1}, P2={self.ai2}")
+
         self.thread = threading.Thread(target=self._run_pyftg, daemon=True)
         self.thread.start()
-        print("Waiting for FightingICE connection...")
 
     def _run_pyftg(self):
         async def main_loop():
@@ -188,11 +177,12 @@ class FightingIceGymEnv(gym.Env):
             while True:
                 print(f"Connecting to {host}:{port}...")
                 gateway = Gateway(host=host, port=port)
-                agent1 = PyFTGAgent(self.obs_queue, self.act_queue, "DreamerAI")
-                gateway.register_ai("DreamerAI", agent1)
+                agent1 = PyFTGAgent(self.obs_queue, self.act_queue, self.ai1)
+                gateway.register_ai(self.ai1, agent1)
                 try:
-                    print("Requesting Game Start: DreamerAI vs MctsAi")
-                    await gateway.run_game(["ZEN", "ZEN"], ["DreamerAI", "MctsAi23i"], 1000)
+                    # --- DEBUG: 実際にサーバーに送るリクエスト ---
+                    print(f"DEBUG: Sending Game Request -> {self.char1}:{self.ai1} vs {self.char2}:{self.ai2}")
+                    await gateway.run_game([self.char1, self.char2], [self.ai1, self.ai2], 1000)
                 except Exception as e:
                     print(f"PyFTG Disconnected: {e}")
                 finally:
@@ -213,7 +203,6 @@ class FightingIceGymEnv(gym.Env):
         except queue.Empty:
             print("Reset Timeout.")
             self.current_obs = {'image': np.zeros((64, 64, 3), dtype=np.uint8)}
-
         return self.current_obs
 
     def step(self, action):
@@ -229,25 +218,28 @@ class FightingIceGymEnv(gym.Env):
 # ----------------------------------------------------------------
 # Factory 関数
 # ----------------------------------------------------------------
-def make_env(config, index, **overrides):
-    env = FightingIceGymEnv()
-    # 【変更】obs_key は指定しない (Dictのまま渡すため) または 'image' をキーとして使う設定を確認
-    # DreamerV3 の FromGym は obs_key='image' を指定するとそのキーの値だけを取り出してしまうが、
-    # Dict space の場合は obs_key を指定せず、そのまま渡して UnifyDtypes で処理させるのが一般的
-    # ここでは obs_key を指定せず、Dict全体を流す設定にします
+
+# 修正: configからは取得せず、引数で受け取る
+# *args, **kwargs を追加して、Dreamerが余分な引数(config, index等)を渡してきても無視できるようにする
+def make_env(config, char1, char2, ai1, ai2, *args, **kwargs):
+    print(f"DEBUG: make_env called. Setting ai2 to '{ai2}'")
+    env = FightingIceGymEnv(
+        char1=char1,
+        char2=char2,
+        ai1=ai1,
+        ai2=ai2
+    )
     env = from_gym.FromGym(env) 
     env = embodied.wrappers.UnifyDtypes(env)
     return env
 
 def make_agent(config):
-    # ダミー環境も画像対応
     class DummyEnv(gym.Env):
         def __init__(self):
             self.action_space = spaces.Discrete(len(ACTION_MAP))
             self.observation_space = spaces.Dict({
                 'image': spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
-            })
-            
+            })     
     env = DummyEnv()
     env = from_gym.FromGym(env)
     env = embodied.wrappers.UnifyDtypes(env)
@@ -305,10 +297,30 @@ def make_stream(config, replay, mode):
 def main():
     warnings.filterwarnings('ignore', '.*truncated to dtype int32.*')
     
+    # DEBUG: コマンドライン引数をそのまま表示
+    print("="*40)
+    print("DEBUG: sys.argv received from shell:")
+    print(sys.argv)
+    print("="*40)
+
+    # 1. argparse で独自の引数を受け取る
+    parser = argparse.ArgumentParser(description="DreamerV3 Training for FightingICE")
+    parser.add_argument('--char1', type=str, default='ZEN', help='Character for Player 1')
+    parser.add_argument('--char2', type=str, default='ZEN', help='Character for Player 2')
+    parser.add_argument('--ai1', type=str, default='DreamerAI', help='AI name for Player 1')
+    parser.add_argument('--ai2', type=str, default='MctsAi23i', help='AI name for Player 2')
+    
+    # 重要なポイント: DreamerV3用の引数(--logdirなど)を無視して、定義した引数だけ取る
+    args, remaining_argv = parser.parse_known_args()
+    
+    print(f"DEBUG: Parsed Arguments -> ai1={args.ai1}, ai2={args.ai2}")
+
+    # 2. DreamerV3 の Config 読み込み
     config_path = repo_root / 'dreamerv3' / 'configs.yaml'
     configs = yaml.YAML(typ='safe').load(elements.Path(config_path).read())
-    
     config = elements.Config(configs['defaults'])
+    
+    # DreamerV3 の設定 (char1等は含めない！Config汚染を防ぐ)
     fightingice_defaults = {
         'logdir': './log/dreamer_fightingice',
         'task': 'fightingice_custom',
@@ -316,16 +328,18 @@ def main():
         'run.log_every': 60,
         'batch_size': 16,
         'batch_length': 64,
-        'run.envs': 1, # シングル環境
+        'run.envs': 1,
     }
     config = config.update(fightingice_defaults)
-    config = elements.Flags(config).parse(sys.argv[1:])
+    
+    # 残りの引数(logdirなど)をDreamerのConfigに適用
+    config = elements.Flags(config).parse(remaining_argv)
 
     logdir = elements.Path(config.logdir)
     print("Logdir:", logdir)
     logdir.mkdir()
     
-    args = elements.Config(
+    run_args = elements.Config(
         **config.run,
         logdir=config.logdir,
         batch_size=config.batch_size,
@@ -336,14 +350,17 @@ def main():
         replay_context=config.replay_context,
     )
 
-    print("Starting training (Visual Input)...")
+    print(f"Starting training: {args.ai1}({args.char1}) vs {args.ai2}({args.char2})")
+    
+    # 3. bind で make_env に CLIから取得した値を埋め込む
+    # ここで値を固定するので、make_env 呼び出し時には args.ai2 が必ず使われます
     embodied.run.train(
         bind(make_agent, config),
         bind(make_replay, config, 'replay'),
-        bind(make_env, config),
+        bind(make_env, config, args.char1, args.char2, args.ai1, args.ai2),
         bind(make_stream, config),
         bind(make_logger, config),
-        args
+        run_args
     )
 
 if __name__ == '__main__':

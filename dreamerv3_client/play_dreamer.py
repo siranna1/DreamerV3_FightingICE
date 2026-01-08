@@ -40,6 +40,15 @@ except ImportError as e:
     print(f"Import Error: {e}")
     sys.exit(1)
 
+try:
+    from elements import checkpoint as elements_ckpt
+    # elementsライブラリが "存在しない" と嘘をつくのを防ぐため、
+    # Python標準の os.path.exists を使うように強制的に書き換える
+    elements_ckpt.exists = lambda p: os.path.exists(str(p))
+    print("Patched elements.checkpoint.exists to use os.path.exists")
+except ImportError:
+    pass
+
 ACTION_MAP = [
     "STAND_B", "CROUCH_B", "STAND_A", "CROUCH_A", 
     "FORWARD_WALK", "BACK_STEP", "JUMP", "CROUCH", "STAND",
@@ -221,28 +230,44 @@ def main():
     print("Initializing Agent...")
     agent = agent_module.Agent(obs_space, act_space, agent_config)
     
-    # --- Checkpoint ---
+    # --- Checkpoint (修正版: 自動フォールバック機能付き) ---
     ckpt_dir = logdir_path / 'ckpt'
     print(f"Looking for checkpoints in: {ckpt_dir}")
     
-    latest_ckpt = None
+    agent_loaded = False
+
     if ckpt_dir.exists():
+        # 日付順にソートし、新しい順に並べる (reverse=True)
         files = [f for f in ckpt_dir.iterdir() if f.name != 'latest' and not f.name.startswith('.')]
-        if files:
-            files = sorted(files, key=lambda x: x.name)
-            latest_ckpt = files[-1]
-            print(f"Found checkpoint file: {latest_ckpt}")
+        files = sorted(files, key=lambda x: x.name, reverse=True)
+        
+        for ckpt_candidate in files:
+            try:
+                print(f"Attempting to load checkpoint: {ckpt_candidate.name}")
+                
+                # パッチ対応: ライブラリのバグ回避用（前回の修正と同様）
+                load_path = str(ckpt_candidate)
+                
+                checkpoint = elements.Checkpoint()
+                checkpoint.agent = agent
+                
+                # 読み込み試行
+                checkpoint.load(load_path, keys=['agent'])
+                
+                print(f"Successfully loaded checkpoint: {ckpt_candidate.name}")
+                agent_loaded = True
+                break  # 成功したらループを抜ける
+
+            except Exception as e:
+                print(f"Warning: Failed to load {ckpt_candidate.name}.")
+                print(f"Reason: {e}")
+                print("Trying the next older checkpoint...")
+                continue
     
-    if latest_ckpt and latest_ckpt.exists():
-        print(f"Loading checkpoint from: {latest_ckpt}")
-        checkpoint = elements.Checkpoint()
-        checkpoint.agent = agent
-        checkpoint.load(str(latest_ckpt), keys=['agent'])
-        print("Checkpoint loaded successfully!")
-    else:
-        print(f"Error: No valid checkpoint found in {ckpt_dir}")
+    if not agent_loaded:
+        print(f"Error: No valid checkpoint found in {ckpt_dir}. Exiting.")
         sys.exit(1)
-    
+       
     print("Generating initial state...")
     initial_state = agent.init_policy(batch_size=1)
     

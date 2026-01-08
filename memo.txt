@@ -16,6 +16,9 @@ docker run --rm -it --name j2130dreamer --network host --gpus '"device=1"' --shm
 python play_dreamer.py --host 127.0.0.1 --logdir /app/log/002 --port 31415
 を実行させる
 
+replayファイルを消すコマンド。dreamerのコンテナン内でreplayフォルダで動かす。数は任意で変える。sizeが1e6なら1200ぐらいあればいいらしい。2500ぐらいは残していいかも
+ls -t | tail -n +2001 | xargs rm
+
 テスト用
  docker run --rm -it   --network fighting-net   -e FIGHTINGICE_HOST=fightingice   -e FIGHTINGICE_PORT=31415   j2130/pythontest
  でpythonの方を動かす。--networkは先ほどと同じもの、FIGHTINGICE_HOSTを前のコンテナの名前、ポートは指定している奴
@@ -45,3 +48,8 @@ dreamerが並列でゲームを起動しようとしてたからエラーいっ�
 調べたら今までの大会に出てたAIも公開されてたから、音だけのルールに代わる22の前の2021の大会の優勝AIと学習させてみたい。手元でキーボードで戦ったけど全然勝てなかった。
 そのAIはppoという手法で自己対戦で学習させたらしい。
 学習を始めるコマンドで使うAIとかを指定できるようにした
+
+
+1/7
+意外と勝てるようになってた。スコアのグラフにスムージングをかけると+180になるぐらいには勝てるようになってた。
+まあブレがすごいんだけど。あまりにもファイルが多すぎたからreplayを2500だけ残して消した。

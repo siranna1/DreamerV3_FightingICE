@@ -18,7 +18,7 @@ python play_dreamer.py --host 127.0.0.1 --logdir /app/log/002 --port 31415
 を実行させる
 
 replayファイルを消すコマンド。dreamerのコンテナン内でreplayフォルダで動かす。数は任意で変える。sizeが1e6なら1200ぐらいあればいいらしい。2500ぐらいは残していいかも
-ls -t | tail -n +2001 | xargs rm
+ls -t | tail -n +2501 | xargs rm
 
 テスト用
  docker run --rm -it   --network fighting-net   -e FIGHTINGICE_HOST=fightingice   -e FIGHTINGICE_PORT=31415   j2130/pythontest

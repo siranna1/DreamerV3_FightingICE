@@ -50,10 +50,30 @@ except ImportError:
     pass
 
 ACTION_MAP = [
-    "STAND_B", "CROUCH_B", "STAND_A", "CROUCH_A", 
-    "FORWARD_WALK", "BACK_STEP", "JUMP", "CROUCH", "STAND",
+    # --- 基本動作 ---
+    "STAND", "CROUCH",
+    "FORWARD_WALK", "BACK_STEP",
+    "JUMP", "FOR_JUMP", "BACK_JUMP", # 垂直・前・後ろジャンプ
+    
+    # --- ガード (AIはガードも行動として選ばせるのが一般的) ---
+    "STAND_GUARD", "CROUCH_GUARD", "AIR_GUARD",
+
+    # --- 基本攻撃 ---
+    "STAND_B", "CROUCH_B", "AIR_B",
+    "STAND_A", "CROUCH_A", "AIR_A",
     "STAND_FA", "STAND_FB", "CROUCH_FA", "CROUCH_FB",
-    "THROW_A", "THROW_B"
+    "AIR_FA", "AIR_FB", # 空中強攻撃も追加
+    
+    # --- 投げ ---
+    "THROW_A", "THROW_B",
+    
+    # --- ZENの必殺技 (ここが重要！) ---
+    "STAND_D_DF_FA", # 波動拳 (弱)
+    "STAND_D_DF_FB", # 波動拳 (強)
+    "STAND_F_D_DFA", # 昇龍拳 (弱) - 対空
+    "STAND_F_D_DFB", # 昇龍拳 (強) - 対空
+    "STAND_D_DB_BA", # 突進技 (弱)
+    "STAND_D_DB_BB", # 突進技 (強)
 ]
 
 # ----------------------------------------------------------------

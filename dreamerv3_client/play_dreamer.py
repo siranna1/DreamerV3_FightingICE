@@ -40,10 +40,9 @@ except ImportError as e:
     print(f"Import Error: {e}")
     sys.exit(1)
 
+# 【重要】チェックポイント読み込み用のパッチ (元のコードから維持)
 try:
     from elements import checkpoint as elements_ckpt
-    # elementsライブラリが "存在しない" と嘘をつくのを防ぐため、
-    # Python標準の os.path.exists を使うように強制的に書き換える
     elements_ckpt.exists = lambda p: os.path.exists(str(p))
     print("Patched elements.checkpoint.exists to use os.path.exists")
 except ImportError:
@@ -102,6 +101,7 @@ class DreamerInferenceAgent(AIInterface):
             if self.frame_data is None or self.frame_data.empty_flag or self.frame_data.current_frame_number < 0:
                 return
 
+
             # 1. 観測データの作成
             obs = {}
             
@@ -113,9 +113,15 @@ class DreamerInferenceAgent(AIInterface):
                         img = cv2.resize(img, (64, 64), interpolation=cv2.INTER_AREA)
                     else:
                         img = img[::10, ::15]
+                    # if not hasattr(self, 'debug_saved'):
+                    #  # RGBをBGRに変換しないとcv2.imwriteで色が変になるが、形確認ならそのままでOK
+                    #     if cv2:
+                    #         cv2.imwrite('debug_vision.png', cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+                    #         print("Saved debug_vision.png! Check this file.")
+                    #         self.debug_saved = True
                     obs['image'] = img
                 except Exception as e:
-                    print(f"Image processing error: {e}")
+                    # print(f"Image processing error: {e}")
                     obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
             else:
                 obs['image'] = np.zeros((64, 64, 3), dtype=np.uint8)
@@ -170,11 +176,14 @@ def main():
     parser.add_argument('--host', type=str, default='127.0.0.1')
     parser.add_argument('--port', type=int, default=31415)
     
-    # --- 追加: 対戦設定 ---
+    # 対戦設定
     parser.add_argument('--char1', type=str, default='ZEN', help='Character for Player 1')
     parser.add_argument('--char2', type=str, default='ZEN', help='Character for Player 2')
     parser.add_argument('--ai1', type=str, default='DreamerAI', help='AI name for Player 1')
     parser.add_argument('--ai2', type=str, default='MctsAi23i', help='AI name for Player 2')
+    
+    # 【追加】ゲーム回数指定
+    parser.add_argument('--games', type=int, default=1, help='Number of games to play')
     
     args_cli = parser.parse_args()
 
@@ -191,9 +200,10 @@ def main():
         'task': 'fightingice_custom',
         'run.train_ratio': 64,
         'run.log_every': 60,
-        'batch_size': 1,    # 推論用に1
+        'batch_size': 1,   # 推論用に1
         'batch_length': 64, 
         'run.envs': 1,
+        'replay.size': 2e6,
     }
     config = config.update(fightingice_defaults)
     
@@ -230,7 +240,7 @@ def main():
     print("Initializing Agent...")
     agent = agent_module.Agent(obs_space, act_space, agent_config)
     
-    # --- Checkpoint (修正版: 自動フォールバック機能付き) ---
+    # --- Checkpoint (元のコードから維持: 堅牢な読み込み) ---
     ckpt_dir = logdir_path / 'ckpt'
     print(f"Looking for checkpoints in: {ckpt_dir}")
     
@@ -245,7 +255,6 @@ def main():
             try:
                 print(f"Attempting to load checkpoint: {ckpt_candidate.name}")
                 
-                # パッチ対応: ライブラリのバグ回避用（前回の修正と同様）
                 load_path = str(ckpt_candidate)
                 
                 checkpoint = elements.Checkpoint()
@@ -271,30 +280,33 @@ def main():
     print("Generating initial state...")
     initial_state = agent.init_policy(batch_size=1)
     
-    policy_fn = bind(agent.policy, mode='eval')
+    policy_fn = bind(agent.policy, mode='train')
+    # policy_fn = bind(agent.policy, mode='train')
 
-    # Gateway
-    async def run_game():
-        gateway = Gateway(host=args_cli.host, port=args_cli.port)
-        
-        # args_cli.ai1 の名前で登録する (デフォルト: DreamerAI)
-        ai_agent = DreamerInferenceAgent(policy_fn, initial_state, name=args_cli.ai1)
-        gateway.register_ai(args_cli.ai1, ai_agent)
-        
-        print(f"Connected to {args_cli.host}:{args_cli.port}")
-        print("Waiting for game start...")
-        
-        try:
-            print(f"Starting Game: {args_cli.ai1}({args_cli.char1}) vs {args_cli.ai2}({args_cli.char2})")
-            # 指定されたキャラクターとAI名でゲームを開始
-            await gateway.run_game([args_cli.char1, args_cli.char2], [args_cli.ai1, args_cli.ai2], 1)
-        except Exception as e:
-            print(f"Game finished or error in run_game: {e}")
-            traceback.print_exc()
-        
-        await gateway.close()
+    # Gateway Loop (ここが今回の変更点)
+    async def run_games_loop():
+        for i in range(args_cli.games):
+            print(f"\n{'='*20} Game {i+1} / {args_cli.games} {'='*20}")
+            
+            gateway = Gateway(host=args_cli.host, port=args_cli.port)
+            
+            ai_agent = DreamerInferenceAgent(policy_fn, initial_state, name=args_cli.ai1)
+            gateway.register_ai(args_cli.ai1, ai_agent)
+            
+            print(f"Connected to {args_cli.host}:{args_cli.port}")
+            
+            try:
+                print(f"Starting Game {i+1}: {args_cli.ai1}({args_cli.char1}) vs {args_cli.ai2}({args_cli.char2})")
+                await gateway.run_game([args_cli.char1, args_cli.char2], [args_cli.ai1, args_cli.ai2], 1)
+            except Exception as e:
+                print(f"Game finished or error in game {i+1}: {e}")
+            finally:
+                await gateway.close()
+            
+            print(f"Game {i+1} Finished. Waiting 2 seconds for next game...")
+            await asyncio.sleep(2)
 
-    asyncio.run(run_game())
+    asyncio.run(run_games_loop())
 
 if __name__ == '__main__':
     main()

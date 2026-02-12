@@ -371,6 +371,7 @@ def main():
         consec_train=config.consec_train,
         consec_report=config.consec_report,
         replay_context=config.replay_context,
+        from_checkpoint_regex='.*',
     )
 
     print(f"Starting training loop against: {args.opponents}")
